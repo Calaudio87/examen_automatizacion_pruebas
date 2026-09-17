@@ -1,0 +1,33 @@
+pipeline {
+    agent any
+    stages {
+        stage('Deploy to Staging') {
+            steps {
+                // Aprovisionamiento de entorno efímero[cite: 6]
+                sh 'docker build -t miapp:${BUILD_NUMBER} .'
+                sh 'docker run -d --name staging miapp:${BUILD_NUMBER}'
+            }
+        }
+        stage('Acceptance Gate') {
+            steps {
+                // Ejecuta solo escenarios BDD/Acceptance[cite: 6]
+                sh 'mvn test -Dcucumber.options="--tags @acceptance"'
+            }
+        }
+        stage('Deploy to Production') {
+            when { 
+                expression { currentBuild.currentResult == 'SUCCESS' } 
+            }
+            steps {
+                sh 'helm upgrade miapp helm/miapp --namespace production'[cite: 7]
+            }
+        }
+    }
+    post {
+        failure {
+            echo "Despliegue fallido: iniciando rollback automático..."[cite: 7]
+            // Llamada al script de rollback
+            sh './infra/rollback.sh'[cite: 7]
+        }
+    }
+}
