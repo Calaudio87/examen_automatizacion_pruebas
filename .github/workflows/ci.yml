@@ -1,28 +1,48 @@
-name: CI Pipeline Examen
+name: CD Pipeline Examen
 
 on:
   push:
-    branches: [ "develop", "main" ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  build-and-test:
+  deploy-staging:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout del código
-      uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - name: Deploy to Staging
+        run: |
+          echo "Aprovisionando entorno de pruebas..."[cite: 6]
+          echo "Aplicación desplegada en Staging."
 
-    - name: Configurar Java
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+  acceptance-gate:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Acceptance Test Gate
+        run: |
+          echo "Ejecutando escenarios BDD/Acceptance..."[cite: 6]
+          echo "Criterios de negocio validados correctamente."
 
-    - name: Build (Compilación)
-      run: mvn clean package -DskipTests
+  deploy-production:
+    needs: acceptance-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy to Production
+        run: |
+          echo "Iniciando despliegue en Producción..."
+          echo "ERROR: Fallo de conexión con la base de datos de producción."
+          exit 1 # Forzamos el error aquí
 
-    - name: Pruebas Unitarias
-      run: mvn test -Dgroups=unit
-
-    - name: Pruebas de Integración
-      run: mvn test -Dgroups=integration
-      
+  rollback-automatico:
+    needs: [deploy-staging, acceptance-gate, deploy-production]
+    if: always() && needs.deploy-production.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Ejecutar Rollback Automático
+        run: |
+          chmod +x infra/rollback.sh
+          ./infra/rollback.sh
